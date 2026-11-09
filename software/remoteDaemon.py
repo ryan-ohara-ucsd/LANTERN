@@ -10,19 +10,32 @@ from ultralytics import YOLO
 from picamera2 import Picamera2
 from libcamera import Transform
 
-'''Run this on remote Pi. localTrigger.py tells remoteDaemon.py to start recording. Footage is saved locally on the remote Pi.'''
+'''Runs on remote Pi. Does the following:
+1) Listens for firing key from teleoperating local Pi. Firing key is
+provided by localTrigger.py and the synchronous Arduino pulse.
+
+2) Starts recording. IMPORTANT: Keep FPS low enough to allow YOLO to
+run simultaneously. If you need a higher FPS, comment out those lines
+and run YOLO model on footage afterwards.
+
+3) Saves footage locally.
+
+4) Sends footage back to teleoperating local Pi. Note that this sometimes
+fails if your recording contains many frames or if your network is unable
+to support large data transfers. If this step times out, your output files
+will be saved automatically onto the remote Pi.'''
 
 
-def recordHelper(
+def record_with_yolo(
     *,
     picam2: Picamera2,
     model: YOLO,
-    outputDir: str,
-    frameRate: float,
-    capDur: float,
-    conf: float,
+    output_dir: str,
+    frame_rate: float,
+    capture_duration_s: float,
+    conf_threshold: float,
 ) -> tuple[str, str]:
-    os.makedirs(outputDir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     frame = picam2.capture_array()
     if frame.shape[2] == 4:
@@ -31,48 +44,51 @@ def recordHelper(
 
     h, w = frame.shape[:2]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    vidPath = os.path.join(outputDir, f"capture_{timestamp}.avi")
-    csvPath = os.path.join(outputDir, f"detections_{timestamp}.csv")
+    video_path = os.path.join(output_dir, f"capture_{timestamp}.avi")
+    csv_path = os.path.join(output_dir, f"detections_{timestamp}.csv")
 
     out = cv2.VideoWriter(
-        vidPath,
+        video_path,
         cv2.VideoWriter_fourcc(*"XVID"),
-        frameRate,
+        frame_rate,
         (w, h),
     )
 
-    interval = 1.0 / frameRate
-    maxFrames = int(capDur * frameRate)
+    frame_interval = 1.0 / frame_rate
+    frame_target = int(capture_duration_s * frame_rate)
 
-    with open(csvPath, "w", newline="") as csv_file:
+    with open(csv_path, "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["timestamp", "x1", "y1", "x2", "y2", "cx", "cy", "conf", "class"])
 
-        prevTime = time.time()
-        i = 0
+        last_frame_time = time.time()
+        frame_count = 0
 
-        while i < maxFrames:
+        while frame_count < frame_target:
             now = time.time()
-            if now - prevTime < interval:
+            if now - last_frame_time < frame_interval:
                 continue
-            prevTime = now
+            last_frame_time = now
 
             frame = picam2.capture_array()
             if frame.shape[2] == 4:
                 frame = frame[:, :, :3]
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-            results = model(frame, verbose=False, conf=conf)
+            results = model(frame, verbose=False, conf=conf_threshold)
             ts = time.time()
 
             if len(results[0].boxes) > 0:
+            # Note: Below section is written to only save a single bounding box per frame.
+            # If you are tracking multiple urchins, this section of the code will need to
+            # be adapted accordingly.
                 confidences = [float(box.conf[0]) for box in results[0].boxes]
-                topIndex = confidences.index(max(confidences))
-                topBox = results[0].boxes[topIndex] # Only places 1 bounding box, need to remove if you're trackinfg multiple urchins.
+                best_idx = confidences.index(max(confidences))
+                best_box = results[0].boxes[best_idx]
 
-                x1, y1, x2, y2 = map(int, topBox.xyxy[0].tolist())
-                conf = float(topBox.conf[0])
-                cls = int(topBox.cls[0])
+                x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
+                conf = float(best_box.conf[0])
+                cls = int(best_box.cls[0])
 
                 cx = (x1 + x2) / 2
                 cy = (y1 + y2) / 2
@@ -86,10 +102,10 @@ def recordHelper(
                 )
 
             out.write(frame)
-            i += 1
+            frame_count += 1
 
     out.release()
-    return vidPath, csvPath
+    return video_path, csv_path
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -120,7 +136,7 @@ def main() -> int:
 
     os.makedirs(args.output_folder, exist_ok=True)
 
-    print("Expected message: START", flush=True)
+    print("Expected message: START <run_id>", flush=True)
 
     try:
         while True:
@@ -130,31 +146,31 @@ def main() -> int:
                 continue
 
             if msg.startswith("START"):
-                print("Starting recording!")
+                print("Starting recording.")
                 parts = msg.split(maxsplit=1)
                 run_id = parts[1] if len(parts) == 2 else datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 run_dir = os.path.join(args.output_folder, f"run_{run_id}")
 
                 t0 = time.time()
-                vidPath, csvPath = recordHelper(
+                video_path, csv_path = record_with_yolo(
                     picam2=picam2,
                     model=model,
-                    outputDir=run_dir,
-                    frameRate=args.frameRate,
-                    capDur=args.capture_duration,
-                    conf=args.conf,
+                    output_dir=run_dir,
+                    frame_rate=args.frame_rate,
+                    capture_duration_s=args.capture_duration,
+                    conf_threshold=args.conf_threshold,
                 )
                 t1 = time.time()
 
                 done_msg = f"DONE {run_id} {run_dir}"
-                print("Finished recording! Press Ctrl + C to stop the program")
+                print("Finished recording. Press Ctrl + C to stop the program.")
                 done_sock.sendto(done_msg.encode("utf-8"), (args.local_ip, args.local_port))
                 
             else:
-                print("Failed run :(")
+                print("Failed run. Aborting.")
 
     except KeyboardInterrupt:
-        print("Exiting", flush=True)
+        print("Exiting.", flush=True)
     finally:
         try:
             picam2.stop()
