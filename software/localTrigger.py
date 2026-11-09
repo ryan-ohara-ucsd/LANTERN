@@ -11,9 +11,9 @@ from gpiod.line import Direction, Edge
 
 """
 Runs on local Pis. Does the following:
-1) Waits for pulse from pictus 2 Arduino.
+1) Waits for pulse from attached Arduino.
 
-2) Sends firing key to remote Pis to begin recording.
+2) Sends firing key to remote Pi(s) to begin recording.
 
 3) Receives video files from remote Pis once recording
 is complete. Again, note that this sometimes fails if your 
@@ -72,20 +72,16 @@ def main() -> int:
 
     start_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    print("Waiting for Arduino pulse...", flush=True)
+    print("Waiting for pulse...", flush=True)
 
     try:
         while True:
             wait_for_trigger(args.trigger_chip, args.trigger_line)
             t_pulse = time.time()
-
-            run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            msg = f"START {run_id}".encode("utf-8")
-
-            start_sock.sendto(msg, (args.remote_host, args.remote_udp_port))
+            start_sock.sendto("START", (args.remote_host, args.remote_udp_port))
             t_sent = time.time()
 
-            print(f"Pulse at {t_pulse:.6f}. Sent firing key at {t_sent:.6f} (delta {(t_sent - t_pulse)*1000:.1f} ms)", flush=True)
+            print(f"Pulse at {t_pulse:.6f}, sent {t_sent:.6f}. If these two times have a large differential, your connection is probably bad.", flush=True)
 
             # Below line needs to be modified based on length of recording.
             # The timeout must be longer than the length of the recording.
@@ -104,21 +100,21 @@ def main() -> int:
                         done_run_id = parts[1]
                         remote_dir = parts[2]
                         if done_run_id == run_id:
-                            print(f"Proper response received from {addr}: {text}", flush=True)
+                            print("Response received", flush=True)
                             rsync_from(args.remote_user, args.remote_host, remote_dir, local_out)
                             break
                         else:
-                            print(f"Ignoring, response was from different run_id={done_run_id}", flush=True)
+                            print("Ignoring, response was from a different run ID.")
                     else:
-                        print(f"Error, data is corrupt: {text!r}", flush=True)
+                        print("Bad data, stopping", flush=True)
 
             if args.once:
                 break
 
-            print("Ready for next trigger.\n", flush=True)
+            print("Ready for next trigger!\n", flush=True)
 
     except KeyboardInterrupt:
-        print("Exiting.", flush=True)
+        print("Exiting", flush=True)
     finally:
         done_sock.close()
         start_sock.close()
