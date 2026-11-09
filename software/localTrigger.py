@@ -3,9 +3,7 @@ import argparse
 import os
 import shlex
 import socket
-import subprocess
 import time
-from datetime import datetime
 import gpiod
 from gpiod.line import Direction, Edge
 
