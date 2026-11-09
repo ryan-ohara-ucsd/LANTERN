@@ -136,7 +136,7 @@ def main() -> int:
 
     os.makedirs(args.output_folder, exist_ok=True)
 
-    print("Expected message: START <run_id>", flush=True)
+   print("Setup good, waiting to receive pulse")
 
     try:
         while True:
@@ -146,7 +146,7 @@ def main() -> int:
                 continue
 
             if msg.startswith("START"):
-                print("Starting recording.")
+                print("Starting recording!")
                 parts = msg.split(maxsplit=1)
                 run_id = parts[1] if len(parts) == 2 else datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 run_dir = os.path.join(args.output_folder, f"run_{run_id}")
@@ -163,14 +163,14 @@ def main() -> int:
                 t1 = time.time()
 
                 done_msg = f"DONE {run_id} {run_dir}"
-                print("Finished recording. Press Ctrl + C to stop the program.")
+                print("Finished recording, press Ctrl + C to stop the program.")
                 done_sock.sendto(done_msg.encode("utf-8"), (args.local_ip, args.local_port))
                 
             else:
                 print("Failed run. Aborting.")
 
     except KeyboardInterrupt:
-        print("Exiting.", flush=True)
+        print("Exiting", flush=True)
     finally:
         try:
             picam2.stop()
