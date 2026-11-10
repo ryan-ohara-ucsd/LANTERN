@@ -1,10 +1,10 @@
-# PICTUS
+# LANTERN
 
 ![lab_logo](https://github.com/user-attachments/assets/6ae06c25-0459-4676-a054-f8e9962b4b88)
 
 Created by the [Hamdoun lab at the Scripps Institution of Oceanography](https://www.hamdounlab.org).
 
-PICTUS (Positional Identification and Continuous Tracking of Urchin Subjects) is a computer vision-based system designed to autonomously track the 3D location of a painted sea urchin, L. pictus, within a lab-based tank. This repository contains:
+LANTERN (Lytechinus Automated Navigation Tracking and Ethogram Recognition Network) is a computer vision-based system designed to autonomously track the 3D location of a painted sea urchin, L. pictus, within a lab-based tank. This repository contains:
 
 a) A YOLOv12n model trained to recognize roving L. pictus.
 
@@ -20,11 +20,11 @@ Before beginning, make sure you have obtained the following:
 
 a) Raspberry Pi 5 (x2). You can format each of the Pis using the Raspberry Pi Imager. During formatting, you will want to install the Raspberry Pi OS (Legacy, 64-bit) containing a port of Debian Bookworm. Installing the wrong OS can cause several of the packages used by this code to break.
 
-b) Camera Module 3 Wide (x1). One of the Pis should have an attached Camera Module 3 and one will not. From this point onward, the Pi with the Camera Module 3 unit will be referred to as the remote Pi while the Pi without the Camera Module 3 unit will be referred to as the local Pi. The remote Pi will be used to collect and label assay footage in your experimental area, while the local Pi will send commands and direct PICTUS from an office or non-experimental lab space.
+b) Camera Module 3 Wide (x1). One of the Pis should have an attached Camera Module 3 and one will not. From this point onward, the Pi with the Camera Module 3 unit will be referred to as the remote Pi while the Pi without the Camera Module 3 unit will be referred to as the local Pi. The remote Pi will be used to collect and label assay footage in your experimental area, while the local Pi will send commands and direct LANTERN from an office or non-experimental lab space.
 
 c) Physical mount for your cameras. You can either 3D print the mounts used by our lab by referencing the attached .gcode files or design your own. Note that the .gcode files are set to print using PLA Basic; if you are using a different material, you will want to open the files in a 3D print editor and export again. You will want to make sure that the Camera Module 3 unit is mounted such that it can see the urchin you are tracking and the entire plane that the urchin will be moving around on.
 
-d) Arduino Nano Every (x1), breadboard (x1), and appropriate wiring. You will be wiring the Arduino to the local Pi using the below diagram. If you wish to run multiple PICTUS units or camera, you will follow this same wiring process for every local Pi attached to the Arduino:
+d) Arduino Nano Every (x1), breadboard (x1), and appropriate wiring. You will be wiring the Arduino to the local Pi using the below diagram. If you wish to run multiple LANTERN units or camera, you will follow this same wiring process for every local Pi attached to the Arduino:
 
 <img width="287" height="470" alt="wiringDiagram" src="https://github.com/user-attachments/assets/1fea22ef-ca4f-4273-9419-e5f66fdacf68" />
 
@@ -40,7 +40,7 @@ c) Then, still within your venv, uninstall numpy via `python -m pip uninstall nu
 
 d) Download **urchinCV.pt** and **remoteDaemon.py** from this repository onto the remote Pi, **localTrigger.py** onto your local Pi, and **arduinoPulse.ino** onto the device you will be using to trigger your recording.
 
-You are now ready to begin using PICTUS.
+You are now ready to begin using LANTERN.
 
 ============================================================================
 
